@@ -22,27 +22,9 @@ async fn main() -> anyhow::Result<()> {
         debug!("remove limit on locked memory failed, ret is: {ret}");
     }
 
-    let mut ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
-        env!("OUT_DIR"),
-        "/pidshark"
-    )))?;
-    match aya_log::EbpfLogger::init(&mut ebpf) {
-        Err(e) => {
-            warn!("failed to initialize eBPF logger: {e}");
-        }
-        Ok(logger) => {
-            let mut logger =
-                tokio::io::unix::AsyncFd::with_interest(logger, tokio::io::Interest::READABLE)?;
-            tokio::task::spawn(async move {
-                loop {
-                    let mut guard = logger.readable_mut().await.unwrap();
-                    guard.get_inner_mut().flush();
-                    guard.clear_ready();
-                }
-            });
-        }
-    }
-    let program: &mut RawTracePoint = ebpf.program_mut("pidshark").unwrap().try_into()?;
+    let mut ebpf = aya::Ebpf::load_file("test.bpf.o")?;
+    
+    let program: &mut RawTracePoint = ebpf.program_mut("handle_sched_exec").unwrap().try_into()?;
     program.load()?;
     program.attach("sched_process_exec")?;
 
@@ -62,6 +44,7 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     let Events { read, lost: _ } =
                         guard.get_inner_mut().read_events(&mut buffers).unwrap();
+                        
                     for buf in buffers.iter_mut().take(read) {
                         let ptr = buf.as_ptr() as *const Process;
                         let data = unsafe { ptr.read_unaligned() };
