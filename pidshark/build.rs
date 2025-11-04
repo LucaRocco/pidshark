@@ -16,6 +16,8 @@ fn main() -> anyhow::Result<()> {
         ..
     } = ebpf_package;
     let ebpf_package = aya_build::Package {
+        no_default_features: false,
+        features: &[],
         name: name.as_str(),
         root_dir: manifest_path
             .parent()
