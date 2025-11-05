@@ -6,36 +6,26 @@ use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
 use tokio::{signal, task};
 use tokio_util::sync::CancellationToken;
 
-mod exec {
-    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/exec.skel.rs"));
+mod processes_trace {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/bpf/processes_trace.skel.rs"
+    ));
 }
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-struct Event {
-    pid: u32,
-    tid: u32,
-    uid: u32,
-    gid: u32,
-    command: [u8; 16],
+mod common {
+    #![allow(non_camel_case_types)]
+    #![allow(unused)]
+    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/common.rs"));
 }
 
-unsafe impl Plain for Event {}
+unsafe impl Plain for common::process {}
 
 fn process_data(data: &[u8]) -> i32 {
-    let s = plain::from_bytes::<Event>(data).unwrap();
-    let end = s
-        .command
-        .iter()
-        .position(|&b| b == 0)
-        .unwrap_or(s.command.len());
+    let s = common::process::from_bytes(data).unwrap();
     println!(
-        "{}  {}  {}  {}  {}",
-        s.pid,
-        s.tid,
-        s.uid,
-        s.gid,
-        String::from_utf8_lossy(&s.command[..end])
+        "{}  {}  {}  {}  {:?}",
+        s.pid, s.tid, s.user, s.group, String::from_utf8_lossy(&s.command)
     );
 
     return 0;
@@ -43,7 +33,7 @@ fn process_data(data: &[u8]) -> i32 {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let skel_builder = exec::ExecSkelBuilder::default();
+    let skel_builder = processes_trace::ProcessesTraceSkelBuilder::default();
 
     let mut open_object = MaybeUninit::uninit();
     let open_skel = skel_builder.open(&mut open_object)?;

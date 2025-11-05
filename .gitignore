@@ -1,1 +1,5 @@
 /target
+
+src/bpf/vmlinux.h
+scr/bpf/.*.skel.rs
+src/bpf/common.rs

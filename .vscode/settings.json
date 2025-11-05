@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "vmlinux.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "enabled"
+}

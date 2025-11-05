@@ -1,4 +1,5 @@
 #include "vmlinux.h"
+#include "common.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
@@ -9,22 +10,13 @@ struct
     __uint(max_entries, 256);
 } PROCESSES SEC(".maps");
 
-struct event
-{
-    pid_t pid;
-    pid_t tid;
-    __u32 user;
-    __u32 group;
-    char command[16]
-};
-
 SEC("raw_tracepoint/sched_process_exec")
 int handle_sched_exec(struct bpf_raw_tracepoint_args *ctx)
 {
     struct task_struct *task;
     task = (struct task_struct *)ctx->args[0];
 
-    struct event e = {};
+    struct process e = {};
 
     __u64 id = bpf_get_current_uid_gid();
     __u32 uid = id & 0xffffffff;
@@ -38,6 +30,18 @@ int handle_sched_exec(struct bpf_raw_tracepoint_args *ctx)
 
     bpf_ringbuf_output(&PROCESSES, &e, sizeof(e), 0);
 
+    return 0;
+}
+
+SEC("raw_tracepoint/sched_process_fork")
+int handle_sched_fork(struct bpf_raw_tracepoint_args *ctx)
+{
+    return 0;
+}
+
+SEC("raw_tracepoint/sched_process_exit")
+int handle_sched_exit(struct bpf_raw_tracepoint_args *ctx)
+{
     return 0;
 }
 
