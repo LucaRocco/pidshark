@@ -2,9 +2,9 @@ use std::{mem::MaybeUninit, time::Duration};
 
 use plain::Plain;
 
-use anyhow::Result;
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
-use tokio::signal;
+use tokio::{signal, task};
+use tokio_util::sync::CancellationToken;
 
 mod exec {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/exec.skel.rs"));
@@ -24,14 +24,25 @@ unsafe impl Plain for Event {}
 
 fn process_data(data: &[u8]) -> i32 {
     let s = plain::from_bytes::<Event>(data).unwrap();
-    let end = s.command.iter().position(|&b| b == 0).unwrap_or(s.command.len());
-    println!("{}  {}  {}  {}  {}", s.pid, s.tid, s.uid, s.gid, String::from_utf8_lossy(&s.command[..end]));
+    let end = s
+        .command
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(s.command.len());
+    println!(
+        "{}  {}  {}  {}  {}",
+        s.pid,
+        s.tid,
+        s.uid,
+        s.gid,
+        String::from_utf8_lossy(&s.command[..end])
+    );
 
     return 0;
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     let skel_builder = exec::ExecSkelBuilder::default();
 
     let mut open_object = MaybeUninit::uninit();
@@ -46,20 +57,21 @@ async fn main() -> Result<()> {
 
     let () = skel.attach()?;
 
-    let handle = tokio::task::spawn(async move {
+    let cancel = CancellationToken::new();
+    let cancel_child = cancel.clone();
+
+    let handle = task::spawn_blocking(move || {
         println!(" PID  TID  UID  GID  COMMAND");
 
-        loop {
-            ringbuf.poll_raw(Duration::MAX);
+        while !cancel_child.is_cancelled() {
+            ringbuf.poll_raw(Duration::from_millis(500));
         }
     });
 
-    let ctrl_c = signal::ctrl_c();
     println!("Waiting for Ctrl-C...");
-    ctrl_c.await?;
-
+    signal::ctrl_c().await?;
     println!("Exiting...");
-    handle.abort();
-
+    cancel.cancel();
+    handle.await.ok();
     Ok(())
 }
