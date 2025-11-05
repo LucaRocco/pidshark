@@ -1,0 +1,20 @@
+[package]
+name = "pidshark"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+vmlinux = { git = "https://github.com/libbpf/vmlinux.h.git", rev = "83a228cf37fc65f2d14e4896a04922b5ee531a94" }
+libbpf-cargo = "0.25.0"
+
+[dependencies]
+anyhow = "1.0.100"
+libbpf-rs = "0.25.0"
+plain = "0.2.3"
+tokio = { version = "1.48.0", default-features = false, features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "net",
+    "signal",
+] }
