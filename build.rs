@@ -1,4 +1,3 @@
-use bindgen;
 use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -27,13 +26,14 @@ fn main() {
                 .unwrap_or(vmlinux::include_path_root().join(arch).as_path())
                 .as_os_str(),
         ])
-        .build_and_generate(&out.join("processes_trace.skel.rs"))
+        .build_and_generate(out.join("processes_trace.skel.rs"))
         .unwrap();
 
     bindgen::Builder::default()
         .header(HDR)
-        .clang_args(["-I", "src/bpf/vmlinux"])
+        .clang_args(["-I", "src/bpf", "-target", "bpf"])
         .allowlist_type("process")
+        .ignore_functions()
         .generate()
         .expect("Unable to generate Rust bindings to common.h")
         .write_to_file(out.join("common.rs"))

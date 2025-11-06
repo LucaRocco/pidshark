@@ -1,0 +1,16 @@
+BasedOnStyle: LLVM           
+IndentWidth: 8              
+UseTab: ForIndentation     
+TabWidth: 8               
+BreakBeforeBraces: Allman
+ColumnLimit: 80         
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+DerivePointerAlignment: false
+PointerAlignment: Left
+IndentCaseLabels: true      
+ReflowComments: false      
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+SpacesBeforeTrailingComments: 1
+SpaceBeforeParens: ControlStatements
