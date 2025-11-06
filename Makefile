@@ -11,4 +11,3 @@ run-debug: build
 
 run-release: build-release
 	sudo ./target/release/pidshark
-

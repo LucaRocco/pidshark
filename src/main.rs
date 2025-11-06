@@ -7,16 +7,13 @@ use tokio::{signal, task};
 use tokio_util::sync::CancellationToken;
 
 mod processes_trace {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/bpf/processes_trace.skel.rs"
-    ));
+    include!(concat!(env!("OUT_DIR"), "/processes_trace.skel.rs"));
 }
 
 mod common {
     #![allow(non_camel_case_types)]
     #![allow(unused)]
-    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/common.rs"));
+    include!(concat!(env!("OUT_DIR"), "/common.rs"));
 }
 
 unsafe impl Plain for common::process {}
@@ -25,7 +22,11 @@ fn process_data(data: &[u8]) -> i32 {
     let s = common::process::from_bytes(data).unwrap();
     println!(
         "{}  {}  {}  {}  {:?}",
-        s.pid, s.tid, s.user, s.group, String::from_utf8_lossy(&s.command)
+        s.pid,
+        s.tid,
+        s.user,
+        s.group,
+        String::from_utf8_lossy(s.command.as_slice())
     );
 
     return 0;
