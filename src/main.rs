@@ -1,6 +1,6 @@
-use std::{mem::MaybeUninit, time::Duration};
 use anyhow::Ok;
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
+use std::{mem::MaybeUninit, time::Duration};
 use tokio::{signal, sync::mpsc::channel, task};
 use tokio_util::sync::CancellationToken;
 use zerocopy::TryFromBytes;
@@ -23,9 +23,9 @@ async fn main() -> anyhow::Result<()> {
     let sender_clone = sender.clone();
     let mut builder = libbpf_rs::RingBufferBuilder::new();
     builder
-        .add(&skel.maps.PROCESSES, move |data| {
-            let process = models::process::Process::try_ref_from_bytes(data).unwrap();
-            if let Err(e) = sender.try_send(*process) {
+        .add(&skel.maps.EXECS, move |data| {
+            let s = common::process::from_bytes(data).unwrap();
+            if let Err(e) = sender.try_send(*s) {
                 eprintln!("Ringbuf channel full or closed: {:?}", e);
             }
 
@@ -56,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let processes_receiver = task::spawn_blocking(move || {
+        println!("EVENT\tPID\tP_PID\tNS_PID\tTID\tNS_TID\tUID\tGID\tSTART_TIME\tCOMMAND");
 
         while !receiver_child.is_cancelled() {
             let process = receiver.blocking_recv();

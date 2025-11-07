@@ -8,7 +8,7 @@ struct
 {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256);
-} PROCESSES SEC(".maps");
+} EXECS SEC(".maps");
 
 struct
 {
@@ -35,22 +35,35 @@ struct prog_array_tp
 SEC("raw_tracepoint/sched_process_exec")
 int handle_sched_exec(struct bpf_raw_tracepoint_args* ctx)
 {
-	struct task_struct* task;
-	task = (struct task_struct*)ctx->args[0];
+    struct task_struct* task;
+    struct linux_binprm* bprm;
 
-	struct process e = {};
+    task = (struct task_struct*)ctx->args[0];
+    bprm = (struct linux_binprm*)ctx->args[2];
 
-	__u64 id = bpf_get_current_uid_gid();
-	__u32 uid = id & 0xffffffff;
-	__u32 gid = id >> 32;
+    struct process e = {};
 
 	e.pid = BPF_CORE_READ(task, tgid);
 	e.tid = BPF_CORE_READ(task, pid);
 	bpf_get_current_comm(&e.name, sizeof(e.name));
-	
-	bpf_ringbuf_output(&PROCESSES, &e, sizeof(e), 0);
 
-	return 0;
+	bpf_ringbuf_output(&EXECS, &e, sizeof(e), 0);
+
+    e.pid = BPF_CORE_READ(task, tgid);
+    e.tid = BPF_CORE_READ(task, pid);
+    e.ppid = BPF_CORE_READ(task, real_parent, tgid);
+
+    e.ns_pid = get_task_ns_tgid(task);
+	e.ns_tid = get_task_ns_pid(task);
+	e.ns_ppid = get_task_ns_ppid(task);
+	e.start_time = get_task_start_time(task);
+
+    bpf_get_current_comm(&e.name, sizeof(e.name));
+    BPF_CORE_READ_STR_INTO(e.filename, bprm, filename);
+
+    bpf_ringbuf_output(&EXECS, &e, sizeof(e), 0);
+
+    return 0;
 }
 
 SEC("raw_tracepoint/sched_process_fork")
@@ -114,6 +127,7 @@ int handle_sched_fork(struct bpf_raw_tracepoint_args* ctx)
 	p.namespaces.net = BPF_CORE_READ(child, nsproxy, net_ns, ns.inum);
 	p.namespaces.time = BPF_CORE_READ(child, nsproxy, time_ns, ns.inum);
 	p.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
+	bpf_get_current_comm(&p.name, sizeof(p.name));
 
 	bpf_ringbuf_output(&FORKS, &p, sizeof(p), 0);
 

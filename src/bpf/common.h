@@ -16,6 +16,7 @@ type Process struct {
 	Uid               int            `json:"uid"`
 	Gid               int            `json:"gid"`
 	StartTime         time.Time      `json:"startTime"`
+	ParentStartTime
 	ExitTime          time.Time      `json:"exitTime"`
 	ExitStatus        int            `json:"exitStatus"`
 	ThreadsIds        map[int]uint32 `json:"threadsIds"` // useless
@@ -55,6 +56,9 @@ struct process
 	__u32 gid;
 	__u64 start_time;
 	__u64 parent_start_time;
+	char filename[16];
+	char argv[25];
+	char envp[25];
 	struct namespaces namespaces;
 };
 

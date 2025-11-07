@@ -1,9 +1,9 @@
 .PHONY: build build-release run-release run-debug
 
-build:
+debug:
 	cargo build
 
-build-release:
+release:
 	cargo build --release
 
 run-debug: build
