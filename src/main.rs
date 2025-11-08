@@ -1,6 +1,11 @@
 use anyhow::Ok;
-use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
-use std::{mem::MaybeUninit, time::Duration};
+
+use libbpf_rs::MapCore;
+use libbpf_rs::skel::{OpenSkel, SkelBuilder};
+use std::mem::MaybeUninit;
+use std::os::fd::AsFd;
+use std::os::fd::AsRawFd;
+use std::time::Duration;
 use tokio::{signal, sync::mpsc::channel, task};
 use tokio_util::sync::CancellationToken;
 use zerocopy::TryFromBytes;
@@ -19,12 +24,22 @@ async fn main() -> anyhow::Result<()> {
     let open_skel = skel_builder.open(&mut open_object)?;
     let mut skel = open_skel.load()?;
 
+    let tail_prog_fd = skel.progs.handle_sched_exec_tail.as_fd().as_raw_fd();
+    let prog_array = skel.maps.prog_array_tp;
+
+    let key: u32 = 0;
+    prog_array.update(
+        &key.to_ne_bytes(),
+        &tail_prog_fd.to_ne_bytes(),
+        libbpf_rs::MapFlags::ANY,
+    )?;
+
     let (sender, mut receiver) = channel(1024);
     let sender_clone = sender.clone();
     let mut builder = libbpf_rs::RingBufferBuilder::new();
     builder
         .add(&skel.maps.EXECS, move |data| {
-            let s = common::process::from_bytes(data).unwrap();
+            let s = models::process::Process::try_ref_from_bytes(data).unwrap();
             if let Err(e) = sender.try_send(*s) {
                 eprintln!("Ringbuf channel full or closed: {:?}", e);
             }
@@ -43,7 +58,9 @@ async fn main() -> anyhow::Result<()> {
         .expect("failed to add forks ringbuf");
     let ringbuf = builder.build().unwrap();
 
-    let () = skel.attach()?;
+    let var1 = skel.progs.handle_sched_exec.attach()?;
+    let var2 = skel.progs.handle_sched_fork.attach()?;
+    let var3 = skel.progs.handle_sched_exit.attach()?;
 
     let cancel = CancellationToken::new();
     let cancel_child = cancel.clone();

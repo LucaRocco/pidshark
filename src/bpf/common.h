@@ -57,8 +57,8 @@ struct process
 	__u64 start_time;
 	__u64 parent_start_time;
 	char filename[16];
-	char argv[25];
-	char envp[25];
+	char argv[16];
+	char envp[16];
 	struct namespaces namespaces;
 };
 
@@ -110,4 +110,34 @@ static __always_inline pid_t get_task_ns_ppid(struct task_struct* task)
 {
 	struct task_struct* real_parent = BPF_CORE_READ(task, real_parent);
 	return get_task_pid_nr(task);
+}
+
+static __always_inline struct mm_struct *get_mm_from_task(struct task_struct *task)
+{
+    return BPF_CORE_READ(task, mm);
+}
+
+static __always_inline unsigned long get_arg_start_from_mm(struct mm_struct *mm)
+{
+    return BPF_CORE_READ(mm, arg_start);
+}
+
+static __always_inline unsigned long get_arg_end_from_mm(struct mm_struct *mm)
+{
+    return BPF_CORE_READ(mm, arg_end);
+}
+
+static __always_inline unsigned long get_env_start_from_mm(struct mm_struct *mm)
+{
+    return BPF_CORE_READ(mm, env_start);
+}
+
+static __always_inline unsigned long get_env_end_from_mm(struct mm_struct *mm)
+{
+    return BPF_CORE_READ(mm, env_end);
+}
+
+static __always_inline int get_argc_from_bprm(struct linux_binprm *bprm)
+{
+    return BPF_CORE_READ(bprm, argc);
 }

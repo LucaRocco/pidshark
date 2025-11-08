@@ -34,6 +34,12 @@ pub struct Process {
     pub gid: u32,
     pub start_time: u64,
     pub parent_start_time: u64,
+    #[serde(with = "u8_array_16_as_string")]
+    pub filename: [u8; 16usize],
+    #[serde(with = "u8_array_16_as_string")]
+    pub argv: [u8; 16usize],
+    #[serde(with = "u8_array_16_as_string")]
+    pub envp: [u8; 16usize],
     pub namespaces: Namespaces,
 }
 
