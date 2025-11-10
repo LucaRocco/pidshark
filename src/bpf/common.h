@@ -1,6 +1,6 @@
 #include "vmlinux.h"
-#include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
+#include <bpf/bpf_helpers.h>
 
 /*
 type Process struct {
@@ -18,32 +18,57 @@ type Process struct {
 	StartTime         time.Time      `json:"startTime"`
 	ExitTime          time.Time      `json:"exitTime"`
 	ExitStatus        int            `json:"exitStatus"`
-	ThreadsIds        map[int]uint32 `json:"threadsIds"`
-	ChildProcessesIds map[int]uint32 `json:"childProcessesIds"`
+	ThreadsIds        map[int]uint32 `json:"threadsIds"` // useless
+	ChildProcessesIds map[int]uint32 `json:"childProcessesIds"` // useless
 	ExecutionBinary   ProcessFile    `json:"executionBinary"`
 	CmdlineArgs       []string       `json:"cmdlineArgs"`
 	Envs              []string       `json:"envs"`
 }*/
 
-enum EVENT_TYPE {
-	EXEC = 1,
-	FORK = 2
+typedef u8 event_type;
+
+const event_type EVENT_EXEC = 1;
+const event_type EVENT_FORK = 2;
+
+struct namespaces
+{
+	__u32 uts;
+	__u32 ipc;
+	__u32 mnt;
+	__u32 pid;
+	__u32 net;
+	__u32 time;
+	__u32 cgroup;
 };
 
 struct process
 {
-	enum EVENT_TYPE event_type;
+	event_type event_type;
+	uint8_t name[16];
+	pid_t tid;
 	pid_t pid;
 	pid_t ppid;
-	pid_t tid;
 	pid_t ns_tid;
 	pid_t ns_pid;
 	pid_t ns_ppid;
 	__u32 uid;
 	__u32 gid;
 	__u64 start_time;
-	char name[16];
-	char command[16];
+	__u64 parent_start_time;
+	struct namespaces namespaces;
+};
+
+struct process_exit
+{
+	pid_t pid;
+	pid_t ppid;
+	pid_t ns_pid;
+	pid_t ns_ppid;
+	__u64 start_time;
+	__u64 parent_start_time;
+	__u32 exit_time;
+	__u32 exit_status;
+	__u32 signal;
 };
 
 static __always_inline u64 get_task_start_time(struct task_struct* task)

@@ -2,11 +2,9 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::Command;
-
 use libbpf_cargo::SkeletonBuilder;
 
 const SRC: &str = "src/bpf/processes_trace.bpf.c";
-const HDR: &str = "src/bpf/common.h";
 
 fn main() {
     let vmlinux_path = ensure_vmlinux_header();
@@ -28,18 +26,6 @@ fn main() {
         ])
         .build_and_generate(out.join("processes_trace.skel.rs"))
         .unwrap();
-
-    bindgen::Builder::default()
-        .header(HDR)
-        .clang_args(["-I", "src/bpf", "-target", "bpf"])
-        .allowlist_type("process")
-        .ignore_functions()
-        .generate()
-        .expect("Unable to generate Rust bindings to common.h")
-        .write_to_file(out.join("common.rs"))
-        .expect("Couldn't write bindings");
-
-    println!("cargo:rerun-if-changed={HDR}");
 }
 
 fn ensure_vmlinux_header() -> PathBuf {

@@ -1,23 +1,15 @@
 use std::{mem::MaybeUninit, time::Duration};
-
 use anyhow::Ok;
-use plain::Plain;
-
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
 use tokio::{signal, sync::mpsc::channel, task};
 use tokio_util::sync::CancellationToken;
+use zerocopy::TryFromBytes;
+
+pub mod models;
 
 mod processes_trace {
     include!(concat!(env!("OUT_DIR"), "/processes_trace.skel.rs"));
 }
-
-mod common {
-    #![allow(non_camel_case_types)]
-    #![allow(unused)]
-    include!(concat!(env!("OUT_DIR"), "/common.rs"));
-}
-
-unsafe impl Plain for common::process {}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -32,8 +24,8 @@ async fn main() -> anyhow::Result<()> {
     let mut builder = libbpf_rs::RingBufferBuilder::new();
     builder
         .add(&skel.maps.PROCESSES, move |data| {
-            let s = common::process::from_bytes(data).unwrap();
-            if let Err(e) = sender.try_send(*s) {
+            let process = models::process::Process::try_ref_from_bytes(data).unwrap();
+            if let Err(e) = sender.try_send(*process) {
                 eprintln!("Ringbuf channel full or closed: {:?}", e);
             }
 
@@ -41,8 +33,8 @@ async fn main() -> anyhow::Result<()> {
         })
         .expect("failed to add processes ringbuf")
         .add(&skel.maps.FORKS, move |data| {
-            let s = common::process::from_bytes(data).unwrap();
-            if let Err(e) = sender_clone.try_send(*s) {
+            let process = models::process::Process::try_ref_from_bytes(data).unwrap();
+            if let Err(e) = sender_clone.try_send(*process) {
                 eprintln!("Ringbuf channel full or closed: {:?}", e);
             }
 
@@ -64,7 +56,6 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let processes_receiver = task::spawn_blocking(move || {
-        println!("EVENT\tPID\tNS_PID\tTID\tNS_TID\tUID\tGID\tSTART_TIME\tCOMMAND");
 
         while !receiver_child.is_cancelled() {
             let process = receiver.blocking_recv();
@@ -73,24 +64,9 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let process = process.unwrap();
-            println!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:?}",
-                if process.event_type == 1 {
-                    "EXEC"
-                } else if process.event_type == 2 {
-                    "FORK"
-                } else {
-                    "EXIT"
-                },
-                process.pid,
-                process.ns_pid,
-                process.tid,
-                process.ns_tid,
-                process.uid,
-                process.gid,
-                process.start_time,
-                String::from_utf8_lossy(process.command.as_slice())
-            );
+            let j = serde_json::to_string(&process).unwrap();
+
+            println!("{}", j)
         }
     });
 
