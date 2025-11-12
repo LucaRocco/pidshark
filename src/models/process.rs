@@ -1,5 +1,8 @@
 use zerocopy::{Immutable, KnownLayout, TryFromBytes};
 
+const ARGS_SIZE: usize = 16000;
+const ENVS_SIZE: usize = 16000;
+
 type EventType = u8;
 
 #[repr(C)]
@@ -14,6 +17,21 @@ pub struct Namespaces {
     pub net: u32,
     pub time: u32,
     pub cgroup: u32,
+}
+
+#[repr(C)]
+#[derive(
+    Debug, Copy, Clone, serde::Serialize, serde::Deserialize, TryFromBytes, KnownLayout, Immutable,
+)]
+pub struct Args {
+    pub arg_start: u32,
+    pub env_start: u32,
+    pub arg_end: u32,
+    pub env_end: u32,
+    #[serde(with = "u8_array_as_string")]
+    pub argv: [u8; ARGS_SIZE],
+    #[serde(with = "u8_array_as_string")]
+    pub envp: [u8; ENVS_SIZE],
 }
 
 #[repr(C)]
@@ -36,10 +54,7 @@ pub struct Process {
     pub parent_start_time: u64,
     #[serde(with = "u8_array_16_as_string")]
     pub filename: [u8; 16usize],
-    #[serde(with = "u8_array_16_as_string")]
-    pub argv: [u8; 16usize],
-    #[serde(with = "u8_array_16_as_string")]
-    pub envp: [u8; 16usize],
+    pub args: Args,
     pub namespaces: Namespaces,
 }
 
@@ -68,6 +83,36 @@ mod u8_array_16_as_string {
 
         let mut arr = [0u8; 16];
         arr[..bytes.len()].copy_from_slice(bytes);
+        Ok(arr)
+    }
+}
+
+mod u8_array_as_string {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S, const N: usize>(value: &[u8; N], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let trimmed = match value.iter().position(|&b| b == 0) {
+            Some(pos) => &value[..pos],
+            None => value,
+        };
+
+        let s = String::from_utf8_lossy(trimmed).to_string();
+        serializer.serialize_str(&s)
+    }
+
+    pub fn deserialize<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        let bytes = s.as_bytes();
+
+        let mut arr = [0u8; N];
+        let len = if bytes.len() > N { N } else { bytes.len() };
+        arr[..len].copy_from_slice(&bytes[..len]);
         Ok(arr)
     }
 }

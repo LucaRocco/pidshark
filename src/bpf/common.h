@@ -1,6 +1,13 @@
+#ifndef __COMMON_H__
+#define __COMMON_H__
+
 #include "vmlinux.h"
+
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
+
+#define ARGS_SIZE 16000
+#define ENVS_SIZE 16000
 
 /*
 type Process struct {
@@ -42,6 +49,16 @@ struct namespaces
 	__u32 cgroup;
 };
 
+struct args
+{
+	u32 arg_start;
+	u32 env_start;
+	u32 arg_end;
+	u32 env_end;
+	char argv[ARGS_SIZE];
+	char envp[ENVS_SIZE];
+};
+
 struct process
 {
 	event_type event_type;
@@ -57,8 +74,7 @@ struct process
 	__u64 start_time;
 	__u64 parent_start_time;
 	char filename[16];
-	char argv[16];
-	char envp[16];
+	struct args args;
 	struct namespaces namespaces;
 };
 
@@ -112,32 +128,35 @@ static __always_inline pid_t get_task_ns_ppid(struct task_struct* task)
 	return get_task_pid_nr(task);
 }
 
-static __always_inline struct mm_struct *get_mm_from_task(struct task_struct *task)
+static __always_inline struct mm_struct*
+get_mm_from_task(struct task_struct* task)
 {
-    return BPF_CORE_READ(task, mm);
+	return BPF_CORE_READ(task, mm);
 }
 
-static __always_inline unsigned long get_arg_start_from_mm(struct mm_struct *mm)
+static __always_inline unsigned long get_arg_start_from_mm(struct mm_struct* mm)
 {
-    return BPF_CORE_READ(mm, arg_start);
+	return BPF_CORE_READ(mm, arg_start);
 }
 
-static __always_inline unsigned long get_arg_end_from_mm(struct mm_struct *mm)
+static __always_inline unsigned long get_arg_end_from_mm(struct mm_struct* mm)
 {
-    return BPF_CORE_READ(mm, arg_end);
+	return BPF_CORE_READ(mm, arg_end);
 }
 
-static __always_inline unsigned long get_env_start_from_mm(struct mm_struct *mm)
+static __always_inline unsigned long get_env_start_from_mm(struct mm_struct* mm)
 {
-    return BPF_CORE_READ(mm, env_start);
+	return BPF_CORE_READ(mm, env_start);
 }
 
-static __always_inline unsigned long get_env_end_from_mm(struct mm_struct *mm)
+static __always_inline unsigned long get_env_end_from_mm(struct mm_struct* mm)
 {
-    return BPF_CORE_READ(mm, env_end);
+	return BPF_CORE_READ(mm, env_end);
 }
 
-static __always_inline int get_argc_from_bprm(struct linux_binprm *bprm)
+static __always_inline int get_argc_from_bprm(struct linux_binprm* bprm)
 {
-    return BPF_CORE_READ(bprm, argc);
+	return BPF_CORE_READ(bprm, argc);
 }
+
+#endif

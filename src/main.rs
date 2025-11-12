@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut open_object = MaybeUninit::uninit();
     let open_skel = skel_builder.open(&mut open_object)?;
-    let mut skel = open_skel.load()?;
+    let skel = open_skel.load()?;
 
     let tail_prog_fd = skel.progs.handle_sched_exec_tail.as_fd().as_raw_fd();
     let prog_array = skel.maps.prog_array_tp;

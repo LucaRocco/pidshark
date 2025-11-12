@@ -1,5 +1,8 @@
 .PHONY: build build-release run-release run-debug
 
+clean:
+	cargo clean
+
 debug:
 	cargo build
 
@@ -11,3 +14,5 @@ run-debug: build
 
 run-release: build-release
 	sudo ./target/release/pidshark
+
+all: clean debug run-debug
