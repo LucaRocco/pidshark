@@ -1,7 +1,6 @@
 use zerocopy::{Immutable, KnownLayout, TryFromBytes};
 
-const ARGS_SIZE: usize = 16000;
-const ENVS_SIZE: usize = 16000;
+const MAX_DIM: usize = 16000;
 
 type EventType = u8;
 
@@ -20,18 +19,49 @@ pub struct Namespaces {
 }
 
 #[repr(C)]
-#[derive(
-    Debug, Copy, Clone, serde::Serialize, serde::Deserialize, TryFromBytes, KnownLayout, Immutable,
-)]
-pub struct Args {
-    pub arg_start: u32,
-    pub env_start: u32,
-    pub arg_end: u32,
-    pub env_end: u32,
-    #[serde(with = "u8_array_as_string")]
-    pub argv: [u8; ARGS_SIZE],
-    #[serde(with = "u8_array_as_string")]
-    pub envp: [u8; ENVS_SIZE],
+#[derive(Debug, Copy, Clone, TryFromBytes, KnownLayout, Immutable)]
+pub struct DynamicString {
+    pub start: u32,
+    pub end: u32,
+    pub string: [u8; MAX_DIM],
+}
+
+impl serde::Serialize for DynamicString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let slice = &self.string[self.start as usize..self.end as usize];
+
+        let s = slice
+            .split(|&b| b == 0)
+            .filter(|part| !part.is_empty())
+            .map(|part| String::from_utf8_lossy(part))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for DynamicString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s: &str = serde::Deserialize::deserialize(deserializer)?;
+        let bytes = s.as_bytes();
+
+        let mut arr = [0u8; MAX_DIM];
+        let len = bytes.len().min(MAX_DIM);
+        arr[..len].copy_from_slice(&bytes[..len]);
+
+        Ok(DynamicString {
+            start: 0,
+            end: len as u32,
+            string: arr,
+        })
+    }
 }
 
 #[repr(C)]
@@ -54,8 +84,11 @@ pub struct Process {
     pub parent_start_time: u64,
     #[serde(with = "u8_array_16_as_string")]
     pub filename: [u8; 16usize],
-    pub args: Args,
+
     pub namespaces: Namespaces,
+
+    pub args: DynamicString,
+    pub envs: DynamicString,
 }
 
 mod u8_array_16_as_string {
@@ -83,36 +116,6 @@ mod u8_array_16_as_string {
 
         let mut arr = [0u8; 16];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(arr)
-    }
-}
-
-mod u8_array_as_string {
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S, const N: usize>(value: &[u8; N], serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let trimmed = match value.iter().position(|&b| b == 0) {
-            Some(pos) => &value[..pos],
-            None => value,
-        };
-
-        let s = String::from_utf8_lossy(trimmed).to_string();
-        serializer.serialize_str(&s)
-    }
-
-    pub fn deserialize<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: &str = Deserialize::deserialize(deserializer)?;
-        let bytes = s.as_bytes();
-
-        let mut arr = [0u8; N];
-        let len = if bytes.len() > N { N } else { bytes.len() };
-        arr[..len].copy_from_slice(&bytes[..len]);
         Ok(arr)
     }
 }

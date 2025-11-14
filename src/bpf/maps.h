@@ -3,8 +3,13 @@
 
 #include "common.h"
 #include "vmlinux.h"
+#include <bits/floatn.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
+
+#define BLOCK_SIZE 512
+#define TOTAL_SIZE 1024
+#define NUM_BLOCKS (TOTAL_SIZE / BLOCK_SIZE)
 
 typedef union scratch
 {
@@ -55,29 +60,38 @@ struct prog_array_tp
 	__type(value, u32);
 } prog_array_tp SEC(".maps");
 
+static __always_inline void init_large_struct(struct process *p) {
+
+    return;
+}
+
 static __always_inline struct process* init_process(pid_t pid, u32 scratch_idx)
 {
-	scratch_t* scratch =
-	    (scratch_t*)bpf_map_lookup_elem(&scratch_map, &scratch_idx);
-	if (scratch == NULL)
-	{
-		bpf_printk("scratch == null");
-		return NULL;
-	}
+    scratch_t* scratch = (scratch_t *)bpf_map_lookup_elem(&scratch_map, &scratch_idx);
+    if (!scratch) {
+        return NULL;
+    }
 
-	bpf_printk("sizeof scratch->proc = %d, sizeof struct process = %d, "
-	           "sizeof scratch proc args = %d",
-	           sizeof(scratch->proc), sizeof(struct process),
-	           sizeof(scratch->proc.args));
-	if (sizeof(scratch->proc) > sizeof(struct process))
-	{
-		bpf_printk("Builtin memset in maps if");
-		__builtin_memset(&scratch->proc, 0, sizeof(struct process));
-	}
+    struct process *p = &scratch->proc;
 
-	bpf_map_update_elem(&process_lru, &pid, &scratch->proc, BPF_ANY);
+    const int off_after_namespaces = offsetof(struct process, args);
 
-	return (struct process*)bpf_map_lookup_elem(&process_lru, &pid);
+    __builtin_memset(p, 0, off_after_namespaces);
+
+    const int off_args_start = offsetof(struct process, args.start);
+    __builtin_memset((void *)p + off_args_start,
+                     0,
+                     sizeof(u32) * 2);   /* start + end */
+
+    const int off_envs_start = offsetof(struct process, envs.start);
+    __builtin_memset((void *)p + off_envs_start,
+                     0,
+                     sizeof(u32) * 2);   /* start + end */
+
+
+    bpf_map_update_elem(&process_lru, &pid, p, BPF_ANY);
+
+    return bpf_map_lookup_elem(&process_lru, &pid);
 }
 
 #endif

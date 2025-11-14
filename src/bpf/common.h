@@ -6,8 +6,7 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 
-#define ARGS_SIZE 16000
-#define ENVS_SIZE 16000
+#define MAX_DIM 16000
 
 /*
 type Process struct {
@@ -49,14 +48,11 @@ struct namespaces
 	__u32 cgroup;
 };
 
-struct args
+struct dynamic_buffer
 {
-	u32 arg_start;
-	u32 env_start;
-	u32 arg_end;
-	u32 env_end;
-	char argv[ARGS_SIZE];
-	char envp[ENVS_SIZE];
+	u32 start;
+	u32 end;
+	char string[MAX_DIM];
 };
 
 struct process
@@ -74,8 +70,11 @@ struct process
 	__u64 start_time;
 	__u64 parent_start_time;
 	char filename[16];
-	struct args args;
+
 	struct namespaces namespaces;
+
+	struct dynamic_buffer args;
+	struct dynamic_buffer envs;
 };
 
 struct process_exit
