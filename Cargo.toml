@@ -1,0 +1,25 @@
+[package]
+name = "pidshark"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+vmlinux = { git = "https://github.com/libbpf/vmlinux.h.git", rev = "83a228cf37fc65f2d14e4896a04922b5ee531a94" }
+libbpf-cargo = "0.25.0"
+bindgen = "0.72.1"
+
+[dependencies]
+anyhow = "1.0.100"
+libbpf-rs = "0.25.0"
+plain = "0.2.3"
+serde_json = "1.0.145"
+serde = { version = "1.0.145", features = ["derive"]}
+tokio = { version = "1.48.0", default-features = false, features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "net",
+    "signal",
+] }
+tokio-util = "0.7.17"
+zerocopy = { version = "0.8.27", features = ["derive"]}
